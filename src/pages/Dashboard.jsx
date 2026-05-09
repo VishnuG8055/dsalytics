@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-import { TrendingUp, CheckCircle2, Zap, BookOpen, MoreHorizontal, Play, Trophy, Users, AlertCircle, ArrowUpRight, RotateCw, X, Settings, Code2 } from 'lucide-react'
+import { TrendingUp, CheckCircle2, Zap, BookOpen, MoreHorizontal, Play, Trophy, Users, AlertCircle, ArrowUpRight, RotateCw, X, Settings, Code2, ExternalLink } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 
@@ -14,8 +14,20 @@ export default function Dashboard() {
   const [onboardLoading, setOnboardLoading] = useState(false)
   const [onboardError, setOnboardError] = useState('')
 
+  const [isLoading, setIsLoading] = useState(true)
   const [dbUser, setDbUser] = useState(null)
   const [solvedStats, setSolvedStats] = useState({ totalSolved: 0, confidenceScore: 0 })
+  const [revisionQueue, setRevisionQueue] = useState([])
+  const [difficultyStats, setDifficultyStats] = useState([
+    { name: 'Easy', value: 0, color: '#10b981' },
+    { name: 'Medium', value: 0, color: '#f59e0b' },
+    { name: 'Hard', value: 0, color: '#f43f5e' }
+  ])
+
+  // Utility to convert slug to title
+  const formatTitle = (slug) => {
+    return slug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+  }
 
   useEffect(() => {
     if (!authUser) return
@@ -42,16 +54,50 @@ export default function Dashboard() {
     async function fetchStats() {
       const { data, error } = await supabase
         .from('solved_problems')
-        .select('id, is_confident')
+        .select('id, title_slug, is_confident, next_revision_date, difficulty, problem_number')
         .eq('user_id', authUser.id)
       
       if (data) {
         const confident = data.filter(p => p.is_confident).length
         const confidenceScore = data.length > 0 ? Math.round((confident / data.length) * 100) : 0
         setSolvedStats({ totalSolved: data.length, confidenceScore })
+
+        // Aggregate Difficulty
+        const easy = data.filter(p => p.difficulty === 'Easy').length
+        const medium = data.filter(p => p.difficulty === 'Medium').length
+        const hard = data.filter(p => p.difficulty === 'Hard').length
+        setDifficultyStats([
+          { name: 'Easy', value: easy, color: '#10b981' },
+          { name: 'Medium', value: medium, color: '#f59e0b' },
+          { name: 'Hard', value: hard, color: '#f43f5e' }
+        ])
+
+        // Get non-confident problems for revision queue, sorted by date
+        const dueRevisions = data
+          .filter(p => !p.is_confident)
+          .sort((a, b) => new Date(a.next_revision_date) - new Date(b.next_revision_date))
+          .slice(0, 5)
+          .map((p, i) => {
+            const daysOverdue = Math.max(0, Math.floor((new Date() - new Date(p.next_revision_date)) / (1000 * 60 * 60 * 24)))
+            return {
+              id: p.id,
+              title: formatTitle(p.title_slug),
+              difficulty: p.difficulty || 'Review', 
+              problem_number: p.problem_number || '',
+              slug: p.title_slug,
+              daysOverdue,
+              type: `revision${(i % 3) + 1}`,
+              topic: 'LeetCode'
+            }
+          })
+        
+        setRevisionQueue(dueRevisions)
       }
     }
-    fetchStats()
+    
+    Promise.all([fetchUser(), fetchStats()]).then(() => {
+      setIsLoading(false)
+    })
   }, [authUser])
 
   async function handleOnboardingSubmit(e) {
@@ -86,14 +132,14 @@ export default function Dashboard() {
   }
 
   const [editForm, setEditForm] = useState({
-    name: 'Alex Johnson',
-    username: 'alexcodes',
+    name: '',
+    username: '',
     leetcodeUsername: '',
-    email: 'alex@example.com',
+    email: '',
     bio: 'Grinding DSA one problem at a time 🚀',
     photo: null,
-    github: 'https://github.com/alexcodes',
-    linkedin: 'https://www.linkedin.com/in/alexjohnson',
+    github: '',
+    linkedin: '',
     targetProblems: 300,
     targetStreak: 30,
     a2zTargetDate: '2024-12-31',
@@ -102,13 +148,26 @@ export default function Dashboard() {
     streakReminders: true
   })
 
-  // User Profile
+  // Update editForm when dbUser loads
+  useEffect(() => {
+    if (dbUser) {
+      setEditForm(prev => ({
+        ...prev,
+        name: dbUser.display_name || 'DSA Hacker',
+        leetcodeUsername: dbUser.leetcode_username || '',
+        email: dbUser.email || '',
+        username: dbUser.email ? dbUser.email.split('@')[0] : 'hacker'
+      }))
+    }
+  }, [dbUser])
+
+  // User Profile Data
   const user = {
-    name: 'Alex Johnson',
-    username: 'alexcodes',
-    avatar: 'A',
-    level: 'Expert',
-    joinDate: 'Mar 2024'
+    name: dbUser?.display_name || 'DSA Hacker',
+    username: dbUser?.email ? dbUser.email.split('@')[0] : 'hacker',
+    avatar: dbUser?.display_name ? dbUser.display_name.charAt(0).toUpperCase() : 'D',
+    level: 'Beginner',
+    joinDate: 'Just now'
   }
 
   const userStats = {
@@ -118,11 +177,7 @@ export default function Dashboard() {
     a2zProgress: 65
   }
 
-  const revisionQueue = [
-    { id: 1, title: 'Two Sum', difficulty: 'Easy', daysOverdue: 2, type: 'revision1', topic: 'Arrays' },
-    { id: 2, title: 'Reverse Integer', difficulty: 'Medium', daysOverdue: 0, type: 'revision2', topic: 'Math' },
-    { id: 3, title: 'Palindrome Number', difficulty: 'Easy', daysOverdue: -1, type: 'revision1', topic: 'Strings' }
-  ]
+
 
   const topicStats = [
     { topic: 'Arrays', mastery: 82, problems: 23, trend: '+5%' },
@@ -136,11 +191,7 @@ export default function Dashboard() {
     { topic: 'Bit Manipulation', mastery: 42, problems: 6, priority: 'Medium' }
   ]
 
-  const difficultyDistribution = [
-    { name: 'Easy', value: 45, color: '#10b981' },
-    { name: 'Medium', value: 55, color: '#f59e0b' },
-    { name: 'Hard', value: 27, color: '#f43f5e' }
-  ]
+
 
   const progressData = [
     { week: 'W1', solved: 8, revised: 2 },
@@ -163,8 +214,23 @@ export default function Dashboard() {
     { name: 'Emma', solved: 138, streak: 22, avatar: 'E' }
   ]
 
+  if (isLoading) {
+    return (
+      <div className="flex-1 min-h-screen p-8 lg:p-10 flex items-center justify-center relative overflow-hidden" style={{ background: 'var(--bg)' }}>
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute top-0 left-[20%] w-[600px] h-[600px] bg-purple-500/5 rounded-full blur-[120px]" />
+        </div>
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+          className="w-12 h-12 border-4 border-t-[#7c3aed] border-r-[#7c3aed] border-b-transparent border-l-transparent rounded-full"
+        />
+      </div>
+    )
+  }
+
   return (
-    <div className="min-h-screen p-8" style={{ background: 'var(--bg)' }}>
+    <div className="flex-1 min-h-screen p-8 lg:p-10 relative overflow-hidden" style={{ background: 'var(--bg)' }}>
       {/* Onboarding Modal */}
       <AnimatePresence>
         {onboardingStep > 0 && (
@@ -407,16 +473,14 @@ export default function Dashboard() {
                     <input
                       type="text"
                       value={editForm.leetcodeUsername}
-                      onChange={(e) => setEditForm({ ...editForm, leetcodeUsername: e.target.value })}
+                      readOnly
                       placeholder="e.g., someone_cool"
                       className="w-full px-4 py-2.5 rounded-lg text-sm outline-none transition-all"
                       style={{
-                        background: 'var(--bg)',
+                        background: 'rgba(255,255,255,0.02)',
                         border: '1px solid var(--border2)',
-                        color: 'var(--text1)'
+                        color: 'var(--text3)'
                       }}
-                      onFocus={(e) => e.target.style.borderColor = 'rgba(124,58,237,0.5)'}
-                      onBlur={(e) => e.target.style.borderColor = 'var(--border2)'}
                     />
                   </div>
 
@@ -803,9 +867,9 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {[
           { icon: CheckCircle2, label: 'Total Solved', value: solvedStats.totalSolved, color: '#10b981' },
-          { icon: Zap, label: 'Current Streak', value: userStats.streak + ' days', color: '#f59e0b' },
+          { icon: Zap, label: 'Current Streak', value: (solvedStats.totalSolved > 0 ? 1 : 0) + ' days', color: '#f59e0b' },
           { icon: TrendingUp, label: 'Confidence', value: solvedStats.confidenceScore + '%', color: '#8b5cf6' },
-          { icon: BookOpen, label: 'A2Z Progress', value: userStats.a2zProgress + '%', color: '#3b82f6' }
+          { icon: BookOpen, label: 'A2Z Progress', value: '0%', color: '#3b82f6' }
         ].map((stat, i) => {
           const Icon = stat.icon
           return (
@@ -913,7 +977,11 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="space-y-3">
-            {revisionQueue.map((item, i) => (
+            {revisionQueue.length === 0 ? (
+              <div className="text-center py-6">
+                <p className="text-sm" style={{ color: 'var(--text3)' }}>No problems due for revision!</p>
+              </div>
+            ) : revisionQueue.map((item, i) => (
               <motion.div
                 key={item.id}
                 initial={{ opacity: 0, x: -10 }}
@@ -928,23 +996,26 @@ export default function Dashboard() {
                   background: 'rgba(255,255,255,0.04)',
                   borderColor: 'var(--border)'
                 }}
+                onClick={() => window.open(`https://leetcode.com/problems/${item.slug}/`, '_blank')}
               >
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex-1">
-                    <p className="text-sm font-medium" style={{ color: 'var(--text1)' }}>
+                    <p className="text-sm font-medium hover:underline flex items-center gap-2" style={{ color: 'var(--text1)' }}>
+                      {item.problem_number && <span style={{ color: 'var(--text3)' }}>#{item.problem_number}</span>}
                       {item.title}
+                      <ExternalLink size={12} style={{ color: 'var(--text3)' }} className="opacity-0 group-hover:opacity-100 transition-opacity" />
                     </p>
                     <div className="flex items-center gap-2 mt-1">
                       <span
-                        className="text-xs px-2 py-0.5 rounded"
+                        className="text-xs px-2 py-0.5 rounded font-medium"
                         style={{
-                          background: item.difficulty === 'Easy' ? 'rgba(16,185,129,0.1)' : item.difficulty === 'Medium' ? 'rgba(245,158,11,0.1)' : 'rgba(244,63,94,0.1)',
-                          color: item.difficulty === 'Easy' ? '#10b981' : item.difficulty === 'Medium' ? '#f59e0b' : '#f43f5e'
+                          background: 'rgba(124,58,237,0.1)',
+                          color: '#a78bfa'
                         }}
                       >
                         {item.difficulty}
                       </span>
-                      <span className="text-xs" style={{ color: 'var(--text3)' }}>
+                      <span className="text-xs font-mono" style={{ color: 'var(--text3)' }}>
                         {item.topic}
                       </span>
                     </div>
@@ -980,26 +1051,36 @@ export default function Dashboard() {
           <h2 className="font-bold text-lg mb-6" style={{ color: 'var(--text1)' }}>
             Problem Distribution
           </h2>
-          <ResponsiveContainer width="100%" height={200}>
-            <PieChart>
-              <Pie
-                data={difficultyDistribution}
-                cx="50%"
-                cy="50%"
-                innerRadius={60}
-                outerRadius={90}
-                paddingAngle={2}
-                dataKey="value"
-              >
-                {difficultyDistribution.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="space-y-2 mt-4">
-            {difficultyDistribution.map((item) => (
+          <div className="h-[200px] mb-6">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={difficultyStats}
+                  innerRadius={60}
+                  outerRadius={80}
+                  paddingAngle={2}
+                  dataKey="value"
+                  stroke="none"
+                >
+                  {difficultyStats.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  contentStyle={{
+                    background: 'rgba(10,10,20,0.95)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '8px',
+                    fontSize: '12px'
+                  }}
+                  itemStyle={{ color: 'white' }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          
+          <div className="space-y-3">
+            {difficultyStats.map((item) => (
               <div key={item.name} className="flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2">
                   <div

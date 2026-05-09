@@ -1,14 +1,8 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { CheckCircle2, ExternalLink, Shuffle, Download } from 'lucide-react'
-
-// All solved problems with revision tracking
-const ALL_SOLVED_PROBLEMS = [
-  { id: 11, name: 'Two Sum', leetcode: 1, difficulty: 'Easy', revisions: 1, fullyConfident: false },
-  { id: 12, name: 'Best Time to Buy and Sell Stock', leetcode: 121, difficulty: 'Easy', revisions: 2, fullyConfident: false },
-  { id: 13, name: 'Contains Duplicate', leetcode: 217, difficulty: 'Easy', revisions: 0, fullyConfident: true },
-  { id: 18, name: 'Product of Array Except Self', leetcode: 238, difficulty: 'Medium', revisions: 0, fullyConfident: false },
-]
+import { useAuth } from '../context/AuthContext'
+import { supabase } from '../lib/supabase'
 
 const getDifficultyColor = (diff) => {
   if (diff === 'Easy') return { bg: '#10b98120', text: '#10b981' }
@@ -17,10 +11,37 @@ const getDifficultyColor = (diff) => {
 }
 
 export default function Revisions() {
+  const { user: authUser } = useAuth()
   const [isShuffled, setIsShuffled] = useState(false)
   const [displayProblems, setDisplayProblems] = useState([])
-  const [problems, setProblems] = useState(ALL_SOLVED_PROBLEMS)
+  const [problems, setProblems] = useState([])
   const [selectedProblem, setSelectedProblem] = useState(null)
+  
+  // Fetch problems from Supabase
+  useEffect(() => {
+    if (!authUser) return
+    
+    async function fetchProblems() {
+      const { data, error } = await supabase
+        .from('solved_problems')
+        .select('*')
+        .eq('user_id', authUser.id)
+      
+      if (data) {
+        const formatted = data.map((p, i) => ({
+          id: p.id,
+          name: p.title_slug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+          leetcode: p.problem_number || i + 1, // Fallback to index if problem_number isn't synced yet
+          difficulty: p.difficulty || 'Easy',
+          revisions: p.revisions_count,
+          fullyConfident: p.is_confident,
+          slug: p.title_slug
+        }))
+        setProblems(formatted)
+      }
+    }
+    fetchProblems()
+  }, [authUser])
   
   // Filter states
   const [showFirst, setShowFirst] = useState(true)
@@ -29,17 +50,44 @@ export default function Revisions() {
   const [showConfident, setShowConfident] = useState(true)
 
   // Toggle confident status for a problem
-  const toggleConfident = (leetcodeId) => {
+  const toggleConfident = async (leetcodeId) => {
+    const target = problems.find(p => p.leetcode === leetcodeId)
+    if (!target) return
+    const newStatus = !target.fullyConfident
+
+    // Optimistic UI update
     setProblems(prev => prev.map(p => 
-      p.leetcode === leetcodeId ? { ...p, fullyConfident: !p.fullyConfident } : p
+      p.leetcode === leetcodeId ? { ...p, fullyConfident: newStatus } : p
     ))
+
+    // DB Update
+    if (authUser) {
+      await supabase
+        .from('solved_problems')
+        .update({ is_confident: newStatus })
+        .eq('user_id', authUser.id)
+        .eq('title_slug', target.slug)
+    }
   }
 
   // Update revisions count
-  const updateRevisions = (leetcodeId, newCount) => {
+  const updateRevisions = async (leetcodeId, newCount) => {
+    const target = problems.find(p => p.leetcode === leetcodeId)
+    if (!target) return
+
+    // Optimistic UI update
     setProblems(prev => prev.map(p => 
       p.leetcode === leetcodeId ? { ...p, revisions: newCount, fullyConfident: false } : p
     ))
+
+    // DB Update
+    if (authUser) {
+      await supabase
+        .from('solved_problems')
+        .update({ revisions_count: newCount, is_confident: false, last_revised_at: new Date() })
+        .eq('user_id', authUser.id)
+        .eq('title_slug', target.slug)
+    }
   }
 
   // Update selected problem when problems change
@@ -87,10 +135,7 @@ export default function Revisions() {
   }
 
   const handleSync = () => {
-    // TODO: Sync solved problems from LeetCode API
-    console.log('Syncing from LeetCode...')
-    alert('Sync feature coming soon! Will fetch your solved problems from LeetCode')
-    // This will fetch the user's solved problems from LeetCode
+    alert('To bulk import your history, please visit your Profile in the Dashboard to copy your Sync Token!')
   }
 
   const handleUnshuffle = () => {
@@ -346,17 +391,28 @@ export default function Revisions() {
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <div style={{
-                      color: problem.fullyConfident ? '#10b981' : 'var(--text1)',
-                      fontSize: 'clamp(12px, 2vw, 14px)',
-                      fontWeight: problem.fullyConfident ? '500' : '600',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      opacity: problem.fullyConfident ? 0.7 : 1
-                    }}>
+                    <a 
+                      href={`https://leetcode.com/problems/${problem.slug}/`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      style={{
+                        color: problem.fullyConfident ? '#10b981' : 'var(--text1)',
+                        fontSize: 'clamp(12px, 2vw, 14px)',
+                        fontWeight: problem.fullyConfident ? '500' : '600',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        opacity: problem.fullyConfident ? 0.7 : 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}
+                      className="hover:underline"
+                    >
                       {problem.name}
-                    </div>
+                      <ExternalLink size={12} style={{ color: 'var(--text3)', opacity: 0.5 }} className="group-hover:opacity-100 transition-opacity" />
+                    </a>
                   </div>
                 </div>
 
@@ -514,13 +570,24 @@ export default function Revisions() {
               {/* Problem Description */}
               <div className="p-6">
                 <div style={{ marginBottom: '24px' }}>
-                  <h3 style={{ color: 'var(--text1)', fontSize: '14px', fontWeight: '700', marginBottom: '8px' }}>
-                    Description
-                  </h3>
-                  <p style={{ color: 'var(--text2)', fontSize: '13px', lineHeight: '1.6' }}>
-                    This is a {selectedProblem.difficulty.toLowerCase()} difficulty problem on LeetCode. 
-                    Click the "View on LeetCode" button below to see the full problem statement with examples and test cases.
-                  </p>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-1">
+                      <a 
+                        href={`https://leetcode.com/problems/${selectedProblem.slug}/`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-bold text-[15px] hover:underline flex items-center gap-2" 
+                        style={{ color: 'var(--text1)' }}
+                      >
+                        {selectedProblem.name}
+                        <ExternalLink size={14} style={{ color: 'var(--text3)' }} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </a>
+                    </div>
+                    <p style={{ color: 'var(--text2)', fontSize: '13px', lineHeight: '1.6' }}>
+                      This is a {selectedProblem.difficulty.toLowerCase()} difficulty problem on LeetCode. 
+                      Click the "View on LeetCode" button below to see the full problem statement with examples and test cases.
+                    </p>
+                  </div>
                 </div>
 
                 {/* Revision Status Section */}

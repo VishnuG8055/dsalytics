@@ -59,7 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      const { count, slugs } = response;
+      const { count, slugs, difficulties, problemNumbers } = response;
       if (count === 0) {
         setStatus('No solved problems found on this account.', 'info');
         syncBtn.disabled = false;
@@ -79,7 +79,9 @@ document.addEventListener('DOMContentLoaded', () => {
           },
           body: JSON.stringify({
             p_sync_token: token,
-            p_title_slugs: slugs
+            p_title_slugs: slugs,
+            p_difficulties: difficulties,
+            p_problem_numbers: problemNumbers
           })
         });
 
