@@ -48,6 +48,16 @@
   --violet-glow: rgba(124,58,237,0.2);
 }
 
+/* Hide scrollbar while keeping scroll functionality */
+.scroll-hidden::-webkit-scrollbar {
+  display: none;
+}
+
+.scroll-hidden {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 html { scroll-behavior: smooth; }
 
 body {
