@@ -9,6 +9,7 @@ import Revisions from './pages/Revisions'
 import A2Z from './pages/A2Z'
 import Topics from './pages/Topics'
 import Friends from './pages/Friends'
+import Resources from './pages/Resources'
 
 function AppLayout({ children }) {
   return (
@@ -44,6 +45,9 @@ export default function App() {
           } />
           <Route path="/friends" element={
             <AppLayout><Friends /></AppLayout>
+          } />
+          <Route path="/resources" element={
+            <AppLayout><Resources /></AppLayout>
           } />
         </Routes>
       </AuthProvider>

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Code2, LayoutGrid, Play, BookOpen, TrendingUp, Users, Trophy, LogOut, Menu, X, Search, Settings, ChevronRight } from 'lucide-react'
+import { Code2, LayoutGrid, Play, BookOpen, TrendingUp, Users, Trophy, LogOut, Menu, X, Search, Settings, ChevronRight, FolderOpen } from 'lucide-react'
 
 export default function Sidebar() {
   const [isOpen, setIsOpen] = useState(false)
@@ -50,6 +50,14 @@ export default function Sidebar() {
       badge: 2,
       color: '#10b981',
       stats: '2 requests'
+    },
+    {
+      icon: FolderOpen,
+      label: 'Resources',
+      path: '/resources',
+      badge: null,
+      color: '#06b6d4',
+      stats: 'Study materials'
     }
   ]
 

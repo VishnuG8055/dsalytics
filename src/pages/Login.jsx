@@ -103,7 +103,7 @@ function LeftPanel() {
 
             {/* Badge */}
             <div
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-medium mb-6"
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-medium mb-6"
               style={{
                 background: 'rgba(124,58,237,0.1)',
                 border: '1px solid rgba(124,58,237,0.2)',
@@ -120,9 +120,9 @@ function LeftPanel() {
 
             {/* Heading */}
             <h2
-              className="font-bold leading-tight mb-2"
+              className="font-bold leading-[1.15] mb-3"
               style={{
-                fontSize: '1.9rem',
+                fontSize: 'clamp(2rem, 3vw, 2.4rem)',
                 letterSpacing: '-0.035em',
                 color: '#f0f0fa'
               }}
@@ -144,10 +144,10 @@ function LeftPanel() {
 
             {/* Description */}
             <p
-              className="text-[13px] leading-relaxed mb-8"
+              className="text-[14px] leading-relaxed mb-9"
               style={{
-                color: '#55556a',
-                maxWidth: '280px'
+                color: '#8888a8',
+                maxWidth: '320px'
               }}
             >
               The only DSA tracker that connects your LeetCode solves
@@ -165,22 +165,22 @@ function LeftPanel() {
                   className="flex items-center gap-3"
                 >
                   <div
-                    className="w-5 h-5 rounded-lg flex items-center justify-center shrink-0"
+                    className="w-5 h-5 rounded-md flex items-center justify-center shrink-0"
                     style={{
                       background: `${color}12`,
                       border: `1px solid ${color}20`
                     }}
                   >
                     <CheckCircle
-                      size={11}
+                      size={12}
                       style={{ color }}
                       strokeWidth={2.5}
                     />
                   </div>
 
                   <span
-                    className="text-[12px]"
-                    style={{ color: '#777799' }}
+                    className="text-[13px]"
+                    style={{ color: '#8888a8' }}
                   >
                     {text}
                   </span>
@@ -203,16 +203,16 @@ function LeftPanel() {
           }}
         >
           <p
-            className="text-[12px] leading-relaxed mb-3"
-            style={{ color: '#55556a' }}
+            className="text-[13px] leading-relaxed mb-3"
+            style={{ color: '#777799' }}
           >
             "The revision queue reminded me of problems I completely forgot.
             One came up in my Amazon interview."
           </p>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <div
-              className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold"
+              className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold"
               style={{
                 background:
                   'linear-gradient(135deg, #7c3aed, #a78bfa)',
@@ -224,15 +224,15 @@ function LeftPanel() {
 
             <div>
               <div
-                className="text-[11px] font-medium"
-                style={{ color: '#9090b0' }}
+                className="text-[12px] font-medium"
+                style={{ color: '#e0e0f0' }}
               >
                 Arjun S.
               </div>
 
               <div
-                className="text-[9px]"
-                style={{ color: '#44445a' }}
+                className="text-[10px]"
+                style={{ color: '#666680' }}
               >
                 SDE-1 · Amazon
               </div>

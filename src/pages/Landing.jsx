@@ -43,8 +43,8 @@ function Background() {
       <div className="noise" />
       <div className="fixed inset-0 pointer-events-none z-0" style={{
         backgroundImage: `
-          linear-gradient(rgba(124,58,237,0.03) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(124,58,237,0.03) 1px, transparent 1px)`,
+          linear-gradient(var(--grid-color) 1px, transparent 1px),
+          linear-gradient(90deg, var(--grid-color) 1px, transparent 1px)`,
         backgroundSize: '72px 72px'
       }} />
       <div className="fixed pointer-events-none z-0" style={{
@@ -129,6 +129,10 @@ function Navbar({ dark, toggleTheme }) {
               <motion.a
                 key={l.label}
                 href={l.href}
+                onClick={(e) => {
+                  e.preventDefault()
+                  document.querySelector(l.href).scrollIntoView({ behavior: 'smooth', block: 'center' })
+                }}
                 onHoverStart={() => setActive(l.label)}
                 onHoverEnd={() => setActive('')}
                 className="relative px-4 py-2 rounded-xl text-[13px] font-medium transition-colors duration-150"
@@ -200,7 +204,11 @@ function Navbar({ dark, toggleTheme }) {
               className="mt-2 p-3 rounded-2xl"
               style={{ background: dark ? 'rgba(6,6,10,0.96)' : 'rgba(248,248,252,0.96)', backdropFilter: 'blur(40px)', border: '1px solid var(--border2)' }}>
               {links.map(l => (
-                <a key={l.label} href={l.href} onClick={() => setMobile(false)}
+                <a key={l.label} href={l.href} onClick={(e) => {
+                  e.preventDefault()
+                  setMobile(false)
+                  document.querySelector(l.href).scrollIntoView({ behavior: 'smooth', block: 'center' })
+                }}
                   className="block px-4 py-2.5 rounded-xl text-sm font-medium transition-colors"
                   style={{ color: 'var(--text2)' }}>{l.label}</a>
               ))}
@@ -241,36 +249,36 @@ function Typewriter({ words }) {
 // ─── Code card ────────────────────────────────────────────────────────────
 function CodeCard() {
   const lines = [
-    [{ t: '// Synced from LeetCode ✓', c: '#3d3d5c' }],
+    [{ t: '// Synced from LeetCode ✓', c: 'var(--syntax-comment)' }],
     [],
-    [{ t: 'const', c: '#a78bfa' }, { t: ' result', c: '#e0e7ff' }, { t: ' = await', c: '#a78bfa' }],
-    [{ t: '  lc', c: '#67e8f9' }, { t: '.sync', c: '#6ee7b7' }, { t: '(username)', c: '#e0e7ff' }],
+    [{ t: 'const', c: 'var(--syntax-keyword)' }, { t: ' result', c: 'var(--syntax-string)' }, { t: ' = await', c: 'var(--syntax-keyword)' }],
+    [{ t: '  lc', c: 'var(--syntax-func)' }, { t: '.sync', c: 'var(--syntax-prop)' }, { t: '(username)', c: 'var(--syntax-string)' }],
     [],
-    [{ t: '// A2Z auto-match ✓', c: '#3d3d5c' }],
-    [{ t: 'a2z', c: '#67e8f9' }, { t: '.markSolved', c: '#6ee7b7' }, { t: '(result)', c: '#e0e7ff' }],
+    [{ t: '// A2Z auto-match ✓', c: 'var(--syntax-comment)' }],
+    [{ t: 'a2z', c: 'var(--syntax-func)' }, { t: '.markSolved', c: 'var(--syntax-prop)' }, { t: '(result)', c: 'var(--syntax-string)' }],
     [],
-    [{ t: '// Schedule revisions', c: '#3d3d5c' }],
-    [{ t: 'spaced', c: '#67e8f9' }, { t: '.queue', c: '#6ee7b7' }, { t: '({', c: '#e0e7ff' }],
-    [{ t: '  days:', c: '#e0e7ff' }, { t: ' [7', c: '#fb923c' }, { t: ', 30', c: '#fb923c' }, { t: ', 90]', c: '#fb923c' }],
-    [{ t: '})', c: '#e0e7ff' }],
+    [{ t: '// Schedule revisions', c: 'var(--syntax-comment)' }],
+    [{ t: 'spaced', c: 'var(--syntax-func)' }, { t: '.queue', c: 'var(--syntax-prop)' }, { t: '({', c: 'var(--syntax-string)' }],
+    [{ t: '  days:', c: 'var(--syntax-string)' }, { t: ' [7', c: 'var(--syntax-num)' }, { t: ', 30', c: 'var(--syntax-num)' }, { t: ', 90]', c: 'var(--syntax-num)' }],
+    [{ t: '})', c: 'var(--syntax-string)' }],
   ]
   return (
     <motion.div className="animate-float"
       initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }}
       transition={{ delay: 0.6, duration: 0.9, ease: [0.22, 1, 0.36, 1] }}>
       <div className="rounded-2xl overflow-hidden" style={{
-        background: '#0a0a14',
-        border: '1px solid rgba(124,58,237,0.2)',
-        boxShadow: '0 24px 80px rgba(0,0,0,0.6), 0 0 0 0.5px rgba(124,58,237,0.1), inset 0 1px 0 rgba(255,255,255,0.04)',
+        background: 'var(--bg2)',
+        border: '1px solid var(--border2)',
+        boxShadow: '0 24px 80px rgba(0,0,0,0.15)',
         width: 340
       }}>
         {/* Title bar */}
         <div className="flex items-center gap-1.5 px-4 py-3"
-          style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.3)' }}>
+          style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg3)' }}>
           {['#f43f5e', '#f59e0b', '#10b981'].map((c, i) => (
             <div key={i} className="w-2.5 h-2.5 rounded-full" style={{ background: c, opacity: 0.85 }} />
           ))}
-          <span className="ml-3 text-[11px] mono" style={{ color: '#44445a' }}>dsalytics.js</span>
+          <span className="ml-3 text-[11px] mono" style={{ color: 'var(--text3)' }}>dsalytics.js</span>
           <div className="ml-auto flex items-center gap-1.5">
             <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
             <span className="text-[10px] mono" style={{ color: '#10b981' }}>live sync</span>
@@ -283,16 +291,16 @@ function CodeCard() {
               transition={{ delay: 0.8 + i * 0.06 }}
               className="flex text-[12px] leading-[1.85] mono">
               <span className="w-5 mr-3 text-right select-none shrink-0"
-                style={{ color: '#2a2a40', fontSize: 10 }}>{i + 1}</span>
+                style={{ color: 'var(--border2)', fontSize: 10 }}>{i + 1}</span>
               <span>{toks.map((t, j) => <span key={j} style={{ color: t.c }}>{t.t}{' '}</span>)}</span>
             </motion.div>
           ))}
         </div>
         {/* Status */}
         <div className="px-4 py-2.5 flex items-center gap-2"
-          style={{ borderTop: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,0,0.25)' }}>
+          style={{ borderTop: '1px solid var(--border)', background: 'var(--bg2)' }}>
           <Zap size={10} style={{ color: '#10b981' }} />
-          <span className="text-[10px] mono" style={{ color: '#44445a' }}>
+          <span className="text-[10px] mono" style={{ color: 'var(--text3)' }}>
             3 synced · A2Z updated · 2 revisions due
           </span>
         </div>
@@ -311,16 +319,16 @@ function Ticker() {
   ]
   return (
     <div className="relative overflow-hidden py-3"
-      style={{ borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
+      style={{ borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', background: 'var(--bg2)' }}>
       <div className="absolute inset-y-0 left-0 w-20 z-10"
-        style={{ background: 'linear-gradient(90deg, var(--bg), transparent)' }} />
+        style={{ background: 'linear-gradient(90deg, var(--bg2), transparent)' }} />
       <div className="absolute inset-y-0 right-0 w-20 z-10"
-        style={{ background: 'linear-gradient(-90deg, var(--bg), transparent)' }} />
+        style={{ background: 'linear-gradient(-90deg, var(--bg2), transparent)' }} />
       <div className="flex animate-marquee">
         {items.map((item, i) => (
           <div key={i} className="flex items-center gap-4 px-5 shrink-0">
-            <span className="text-[12px] font-medium whitespace-nowrap tracking-wide"
-              style={{ color: 'var(--text3)' }}>{item}</span>
+            <span className="text-[12px] font-semibold whitespace-nowrap tracking-wide"
+              style={{ color: 'var(--text2)' }}>{item}</span>
             <div className="w-1 h-1 rounded-full" style={{ background: 'var(--text3)' }} />
           </div>
         ))}
@@ -413,13 +421,13 @@ function A2ZPreview() {
             initial={{ opacity: 0, x: -10 }} whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }} transition={{ delay: i * 0.06 }}
             className="flex items-center justify-between px-5 py-3 transition-colors duration-150"
-            style={{ borderBottom: i < problems.length - 1 ? '1px solid rgba(255,255,255,0.03)' : 'none' }}
-            onMouseEnter={e => e.currentTarget.style.background = 'rgba(124,58,237,0.03)'}
+            style={{ borderBottom: i < problems.length - 1 ? '1px solid var(--border)' : 'none' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'var(--violet-dim)'}
             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
             <div className="flex items-center gap-3">
               <div className="w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0"
                 style={{
-                  borderColor: p.solved ? '#10b981' : 'rgba(255,255,255,0.15)',
+                  borderColor: p.solved ? '#10b981' : 'var(--border2)',
                   background: p.solved ? 'rgba(16,185,129,0.1)' : 'transparent'
                 }}>
                 {p.solved && <CheckCircle size={10} style={{ color: '#10b981' }} strokeWidth={3} />}
@@ -429,7 +437,7 @@ function A2ZPreview() {
                   style={{
                     color: p.solved ? 'var(--text3)' : 'var(--text1)',
                     textDecoration: p.solved ? 'line-through' : 'none',
-                    textDecorationColor: 'rgba(255,255,255,0.15)'
+                    textDecorationColor: 'var(--border2)'
                   }}>{p.title}</div>
                 <div className="text-[10px]" style={{ color: 'var(--text3)' }}>{p.topic}</div>
               </div>
@@ -441,7 +449,7 @@ function A2ZPreview() {
       </div>
       {/* Footer */}
       <div className="px-5 py-2.5 flex items-center gap-2"
-        style={{ borderTop: '1px solid var(--border)', background: 'rgba(0,0,0,0.15)' }}>
+        style={{ borderTop: '1px solid var(--border)', background: 'var(--bg2)' }}>
         <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
         <span className="text-[10px] mono" style={{ color: 'var(--text3)' }}>
           Auto-synced from LeetCode · 4 min ago
@@ -479,7 +487,7 @@ function RevisionCard() {
             initial={{ opacity: 0, x: -10 }} whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }} transition={{ delay: 0.2 + i * 0.07 }}
             className="flex items-center justify-between px-4 py-3 rounded-xl"
-            style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)' }}>
+            style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>
             <div>
               <div className="text-[12px] font-medium" style={{ color: 'var(--text1)' }}>{item.title}</div>
               <div className="text-[10px] mt-0.5" style={{ color: 'var(--text3)' }}>{item.topic}</div>
@@ -561,7 +569,7 @@ export default function Landing() {
               <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
                 className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full mb-7 text-[11px] font-medium tracking-wide"
-                style={{ background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.22)', color: '#a78bfa' }}>
+                style={{ background: 'var(--violet-dim)', border: '1px solid var(--violet-glow)', color: 'var(--violet)' }}>
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                 Striver A2Z · Auto-tracked from LeetCode
                 <ChevronRight size={11} />
@@ -656,12 +664,12 @@ export default function Landing() {
       <div className="relative z-10"><Ticker /></div>
 
       {/* ── FEATURES ── */}
-      <section id="features" className="relative z-10 py-24 px-6">
-        <div className="max-w-6xl mx-auto">
+      <section id="features" className="relative z-10 py-24 px-6 flex flex-col justify-center">
+        <div className="max-w-6xl mx-auto w-full">
           <motion.div initial={{ opacity: 0, y: 18 }} whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }} className="text-center mb-14">
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-medium mb-4"
-              style={{ background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.18)', color: '#a78bfa' }}>
+              style={{ background: 'var(--violet-dim)', border: '1px solid var(--violet-glow)', color: 'var(--violet)' }}>
               <Sparkles size={11} /> Everything you need
             </div>
             <h2 className="font-bold tracking-tight mb-3"
@@ -680,8 +688,8 @@ export default function Landing() {
       </section>
 
       {/* ── A2Z ── */}
-      <section id="a2z-sheet" className="relative z-10 py-24 px-6">
-        <div className="max-w-6xl mx-auto grid lg:grid-cols-2 gap-16 items-start">
+      <section id="a2z-sheet" className="relative z-10 py-24 px-6 flex flex-col justify-center">
+        <div className="max-w-6xl mx-auto grid lg:grid-cols-2 gap-16 items-start w-full">
           <motion.div initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }} transition={{ duration: 0.6 }}>
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-medium mb-5"
@@ -720,13 +728,13 @@ export default function Landing() {
       </section>
 
       {/* ── REVISION ── */}
-      <section id="revision" className="relative z-10 py-24 px-6">
-        <div className="max-w-6xl mx-auto grid lg:grid-cols-2 gap-16 items-start">
+      <section id="revision" className="relative z-10 py-24 px-6 flex flex-col justify-center">
+        <div className="max-w-6xl mx-auto grid lg:grid-cols-2 gap-16 items-start w-full">
           <RevisionCard />
           <motion.div initial={{ opacity: 0, x: 20 }} whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }} transition={{ duration: 0.6 }}>
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-medium mb-5"
-              style={{ background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.18)', color: '#a78bfa' }}>
+              style={{ background: 'var(--violet-dim)', border: '1px solid var(--violet-glow)', color: 'var(--violet)' }}>
               <RefreshCw size={11} /> Spaced Repetition
             </div>
             <h2 className="font-bold tracking-tight mb-4"
@@ -764,8 +772,8 @@ export default function Landing() {
       </section>
 
       {/* ── SOCIAL ── */}
-      <section id="social" className="relative z-10 py-24 px-6">
-        <div className="max-w-6xl mx-auto">
+      <section id="social" className="relative z-10 py-24 px-6 flex flex-col justify-center">
+        <div className="max-w-6xl mx-auto w-full">
           <motion.div initial={{ opacity: 0, y: 18 }} whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }} className="text-center mb-12">
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-medium mb-4"
@@ -795,7 +803,7 @@ export default function Landing() {
           <motion.div initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             className="relative rounded-3xl p-14 text-center overflow-hidden"
-            style={{ background: 'var(--card)', border: '1px solid rgba(124,58,237,0.2)' }}>
+            style={{ background: 'var(--card)', border: '1px solid var(--border2)' }}>
             <div className="absolute inset-0 opacity-[0.05] rounded-3xl"
               style={{ background: 'radial-gradient(circle at 50% 0%, #7c3aed, transparent 70%)' }} />
             <div className="absolute top-0 left-0 right-0 h-px"
