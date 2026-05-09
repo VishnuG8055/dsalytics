@@ -1,11 +1,90 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-import { TrendingUp, CheckCircle2, Zap, BookOpen, MoreHorizontal, Play, Trophy, Users, AlertCircle, ArrowUpRight, RotateCw, X, Settings } from 'lucide-react'
+import { TrendingUp, CheckCircle2, Zap, BookOpen, MoreHorizontal, Play, Trophy, Users, AlertCircle, ArrowUpRight, RotateCw, X, Settings, Code2 } from 'lucide-react'
+import { useAuth } from '../context/AuthContext'
+import { supabase } from '../lib/supabase'
 
 export default function Dashboard() {
+  const { user: authUser } = useAuth()
   const [lastSync, setLastSync] = useState('2 hours ago')
   const [showEditModal, setShowEditModal] = useState(false)
+  const [onboardingStep, setOnboardingStep] = useState(0) // 0: none, 1: leetcode username, 2: chrome extension token
+  const [onboardUsername, setOnboardUsername] = useState('')
+  const [onboardLoading, setOnboardLoading] = useState(false)
+  const [onboardError, setOnboardError] = useState('')
+
+  const [dbUser, setDbUser] = useState(null)
+  const [solvedStats, setSolvedStats] = useState({ totalSolved: 0, confidenceScore: 0 })
+
+  useEffect(() => {
+    if (!authUser) return
+
+    async function fetchUser() {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', authUser.id)
+        .single()
+
+      if (data) {
+        setDbUser(data)
+        if (!data.leetcode_username) {
+          setOnboardingStep(1)
+        }
+      } else if (error && error.code === 'PGRST116') {
+        // PGRST116 is Supabase's "Row not found" error
+        setOnboardingStep(1)
+      }
+    }
+    fetchUser()
+
+    async function fetchStats() {
+      const { data, error } = await supabase
+        .from('solved_problems')
+        .select('id, is_confident')
+        .eq('user_id', authUser.id)
+      
+      if (data) {
+        const confident = data.filter(p => p.is_confident).length
+        const confidenceScore = data.length > 0 ? Math.round((confident / data.length) * 100) : 0
+        setSolvedStats({ totalSolved: data.length, confidenceScore })
+      }
+    }
+    fetchStats()
+  }, [authUser])
+
+  async function handleOnboardingSubmit(e) {
+    e.preventDefault()
+    if (!onboardUsername.trim()) {
+      setOnboardError('LeetCode username is required.')
+      return
+    }
+
+    setOnboardLoading(true)
+    setOnboardError('')
+
+    const { data: updatedUser, error } = await supabase
+      .from('users')
+      .upsert({ 
+        id: authUser.id,
+        email: authUser.email,
+        display_name: authUser.user_metadata?.full_name || '',
+        leetcode_username: onboardUsername.trim() 
+      })
+      .select()
+      .single()
+
+    setOnboardLoading(false)
+
+    if (error) {
+      setOnboardError('Failed to save username. Please try again.')
+    } else {
+      setDbUser(updatedUser)
+      setOnboardingStep(2) // Move to step 2 (Chrome extension)
+    }
+  }
+
   const [editForm, setEditForm] = useState({
     name: 'Alex Johnson',
     username: 'alexcodes',
@@ -86,6 +165,130 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen p-8" style={{ background: 'var(--bg)' }}>
+      {/* Onboarding Modal */}
+      <AnimatePresence>
+        {onboardingStep > 0 && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 backdrop-blur-md"
+            style={{ background: 'rgba(0,0,0,0.6)' }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              className="w-full max-w-md rounded-2xl p-8 relative overflow-hidden"
+              style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+            >
+              {/* Decorative background glow */}
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-32 opacity-20 pointer-events-none"
+                style={{ background: 'radial-gradient(circle, #7c3aed 0%, transparent 70%)' }} />
+
+              <div className="relative z-10 flex flex-col items-center text-center">
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-6"
+                  style={{ background: 'linear-gradient(135deg, #7c3aed, #a78bfa)', boxShadow: '0 8px 32px rgba(124,58,237,0.3)' }}>
+                  <Code2 size={28} color="white" strokeWidth={2.5} />
+                </div>
+                
+                <h2 className="text-2xl font-bold mb-2 tracking-tight" style={{ color: 'var(--text1)' }}>
+                  {onboardingStep === 1 ? 'Welcome to DSAlytics' : 'Import Your History'}
+                </h2>
+                <p className="text-[13px] leading-relaxed mb-8" style={{ color: 'var(--text2)' }}>
+                  {onboardingStep === 1 
+                    ? 'To start tracking your progress and syncing your solutions, we need to connect your LeetCode profile.'
+                    : 'Awesome! Now let\'s securely bulk import your past LeetCode problems using our Chrome Extension.'}
+                </p>
+
+                {onboardingStep === 1 ? (
+                  <form onSubmit={handleOnboardingSubmit} className="w-full">
+                    <div className="relative mb-2">
+                    <input
+                      type="text"
+                      placeholder="LeetCode username"
+                      value={onboardUsername}
+                      onChange={(e) => setOnboardUsername(e.target.value)}
+                      className="w-full py-3 rounded-xl text-[14px] outline-none transition-all text-center font-medium"
+                      style={{
+                        background: 'rgba(255,255,255,0.03)',
+                        border: '1px solid var(--border2)',
+                        color: 'var(--text1)',
+                        fontFamily: "'JetBrains Mono', monospace"
+                      }}
+                      onFocus={e => e.target.style.borderColor = 'rgba(124,58,237,0.5)'}
+                      onBlur={e => e.target.style.borderColor = 'var(--border2)'}
+                      autoFocus
+                    />
+                  </div>
+                  
+                  <AnimatePresence>
+                    {onboardError && (
+                      <motion.p initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}
+                        className="text-[12px] text-red-400 mb-4 text-center">
+                        {onboardError}
+                      </motion.p>
+                    )}
+                  </AnimatePresence>
+
+                    <button
+                      type="submit"
+                      disabled={onboardLoading}
+                      className="w-full py-3 rounded-xl text-[14px] font-semibold transition-all mt-4"
+                      style={{
+                        background: onboardLoading ? 'rgba(124,58,237,0.5)' : '#7c3aed',
+                        color: 'white',
+                        boxShadow: onboardLoading ? 'none' : '0 4px 14px rgba(124,58,237,0.4)'
+                      }}
+                    >
+                      {onboardLoading ? 'Connecting...' : 'Connect Profile'}
+                    </button>
+                  </form>
+                ) : (
+                  <div className="w-full space-y-4">
+                    <div className="p-4 rounded-xl text-left" style={{ background: 'rgba(16,185,129,0.05)', border: '1px solid var(--border2)' }}>
+                      <p className="text-xs mb-3 font-medium" style={{ color: 'var(--text1)' }}>
+                        1. Install the <a href="#" style={{ color: '#10b981' }}>DSAlytics Extension</a> in Chrome.
+                      </p>
+                      <p className="text-xs mb-2 font-medium" style={{ color: 'var(--text1)' }}>
+                        2. Click the extension icon and paste your Sync Token:
+                      </p>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          readOnly
+                          value={dbUser?.sync_token || 'Token not found. Run SQL!'}
+                          className="w-full px-3 py-2 rounded-lg text-xs outline-none font-mono"
+                          style={{
+                            background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border2)', color: 'var(--text3)'
+                          }}
+                        />
+                        <button
+                          onClick={() => {
+                            if (dbUser?.sync_token) {
+                              navigator.clipboard.writeText(dbUser.sync_token)
+                              alert('Token copied to clipboard!')
+                            }
+                          }}
+                          className="px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap"
+                          style={{ background: '#10b981', color: 'white' }}
+                        >
+                          Copy
+                        </button>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setOnboardingStep(0)}
+                      className="w-full py-3 rounded-xl text-[14px] font-semibold transition-all"
+                      style={{ background: '#7c3aed', color: 'white', boxShadow: '0 4px 14px rgba(124,58,237,0.4)' }}
+                    >
+                      Go to Dashboard
+                    </button>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Edit Profile Modal */}
       <AnimatePresence>
         {showEditModal && (
@@ -444,6 +647,46 @@ export default function Dashboard() {
                     ))}
                   </div>
                 </div>
+
+                {/* Chrome Extension Sync Token */}
+                <div className="space-y-4 p-4 rounded-xl" style={{ background: 'rgba(16,185,129,0.05)', border: '1px solid var(--border2)' }}>
+                  <h3 className="font-semibold text-sm" style={{ color: 'var(--text1)' }}>Chrome Extension Sync</h3>
+                  <p className="text-xs mb-2" style={{ color: 'var(--text2)' }}>
+                    Paste this token into the DSAlytics Chrome Extension to securely bulk import your LeetCode history.
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      readOnly
+                      value={dbUser?.sync_token || 'Token will appear here...'}
+                      className="w-full px-4 py-2.5 rounded-lg text-sm outline-none font-mono"
+                      style={{
+                        background: 'rgba(255,255,255,0.03)',
+                        border: '1px solid var(--border2)',
+                        color: 'var(--text3)'
+                      }}
+                    />
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={(e) => {
+                        e.preventDefault()
+                        if (dbUser?.sync_token) {
+                          navigator.clipboard.writeText(dbUser.sync_token)
+                          alert('Token copied to clipboard!')
+                        }
+                      }}
+                      className="px-4 py-2.5 rounded-lg text-sm font-semibold whitespace-nowrap"
+                      style={{
+                        background: '#10b981',
+                        color: 'white',
+                        border: '1px solid rgba(16,185,129,0.3)'
+                      }}
+                    >
+                      Copy Token
+                    </motion.button>
+                  </div>
+                </div>
               </div>
 
               <div className="flex gap-3 mt-8">
@@ -549,7 +792,7 @@ export default function Dashboard() {
           <div className="flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
             <Trophy size={16} style={{ color: '#f59e0b' }} />
             <span className="text-sm font-semibold" style={{ color: 'var(--text1)' }}>
-              {Math.floor(userStats.totalSolved / 10)} XP
+              {Math.floor(solvedStats.totalSolved / 10)} XP
             </span>
             <Settings size={16} style={{ color: '#7c3aed' }} />
           </div>
@@ -559,9 +802,9 @@ export default function Dashboard() {
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {[
-          { icon: CheckCircle2, label: 'Total Solved', value: userStats.totalSolved, color: '#10b981' },
+          { icon: CheckCircle2, label: 'Total Solved', value: solvedStats.totalSolved, color: '#10b981' },
           { icon: Zap, label: 'Current Streak', value: userStats.streak + ' days', color: '#f59e0b' },
-          { icon: TrendingUp, label: 'Confidence', value: userStats.confidenceScore + '%', color: '#8b5cf6' },
+          { icon: TrendingUp, label: 'Confidence', value: solvedStats.confidenceScore + '%', color: '#8b5cf6' },
           { icon: BookOpen, label: 'A2Z Progress', value: userStats.a2zProgress + '%', color: '#3b82f6' }
         ].map((stat, i) => {
           const Icon = stat.icon

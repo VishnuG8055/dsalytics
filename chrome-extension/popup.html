@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>DSAlytics Bulk Sync</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: 'Inter', sans-serif;
+      width: 320px;
+      background: #06060d;
+      color: #f0f0fa;
+      padding: 20px;
+    }
+    
+    .container {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+    
+    .logo {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #7c3aed, #a78bfa);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 14px rgba(124,58,237,0.3);
+    }
+    
+    h1 {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    
+    p {
+      font-size: 12px;
+      color: #8888a8;
+      line-height: 1.5;
+    }
+    
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    
+    label {
+      font-size: 11px;
+      font-weight: 600;
+      color: #a78bfa;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    
+    input {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.1);
+      background: rgba(255,255,255,0.03);
+      color: white;
+      font-size: 13px;
+      font-family: monospace;
+      outline: none;
+      transition: all 0.2s;
+    }
+    
+    input:focus {
+      border-color: #7c3aed;
+      background: rgba(124,58,237,0.05);
+    }
+    
+    button {
+      width: 100%;
+      padding: 12px;
+      border-radius: 8px;
+      border: none;
+      background: #7c3aed;
+      color: white;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: 0 4px 14px rgba(124,58,237,0.2);
+    }
+    
+    button:hover {
+      background: #8b5cf6;
+      box-shadow: 0 6px 20px rgba(124,58,237,0.4);
+    }
+    
+    button:disabled {
+      background: rgba(124,58,237,0.5);
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+    
+    .status {
+      font-size: 12px;
+      text-align: center;
+      margin-top: 8px;
+      min-height: 18px;
+    }
+    
+    .status.error { color: #f43f5e; }
+    .status.success { color: #10b981; }
+    .status.info { color: #3b82f6; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="logo">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="16 18 22 12 16 6"></polyline>
+          <polyline points="8 6 2 12 8 18"></polyline>
+        </svg>
+      </div>
+      <div>
+        <h1>DSAlytics Sync</h1>
+        <p>Bulk import LeetCode history</p>
+      </div>
+    </div>
+    
+    <div class="input-group">
+      <label>Your Sync Token</label>
+      <input type="text" id="syncToken" placeholder="Paste UUID here..." spellcheck="false" autocomplete="off" />
+    </div>
+    
+    <button id="syncBtn">Start Bulk Sync</button>
+    
+    <div id="status" class="status"></div>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -275,8 +275,7 @@ function InputField({ icon: Icon, type = 'text', placeholder, value, onChange, r
 export default function Login() {
   const navigate = useNavigate()
   const [mode, setMode] = useState('login')
-  const [step, setStep] = useState(1)
-  const [form, setForm] = useState({ name: '', email: '', password: '', username: '' })
+  const [form, setForm] = useState({ email: '', password: '' })
   const [showPass, setShowPass] = useState(false)
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
@@ -286,8 +285,8 @@ export default function Login() {
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
   function switchMode(m) {
-    setMode(m); setError(''); setSuccess(''); setStep(1)
-    setForm({ name: '', email: '', password: '', username: '' })
+    setMode(m); setError(''); setSuccess('');
+    setForm({ email: '', password: '' })
   }
 
   async function handleGoogle() {
@@ -303,29 +302,17 @@ export default function Login() {
     e.preventDefault()
     setError(''); setSuccess('')
 
-    if (mode === 'signup' && step === 1) {
-      if (!form.email || !form.password) { setError('Please fill in all fields.'); return }
-      if (form.password.length < 6) { setError('Password must be at least 6 characters.'); return }
-      setStep(2); return
-    }
-
     if (!form.email || !form.password) { setError('Please fill in all fields.'); return }
-    setLoading(true)
+    if (mode === 'signup' && form.password.length < 6) { setError('Password must be at least 6 characters.'); return }
 
+    setLoading(true)
     try {
       if (mode === 'signup') {
-        const { data, error: err } = await supabase.auth.signUp({
-          email: form.email, password: form.password,
-          options: { data: { display_name: form.name } }
+        const { error: err } = await supabase.auth.signUp({
+          email: form.email, password: form.password
         })
         if (err) throw err
-        if (data.user && form.username) {
-          await supabase.from('users').upsert({
-            id: data.user.id, email: form.email,
-            display_name: form.name, leetcode_username: form.username
-          })
-        }
-        setSuccess('Account created! Check your email to confirm.')
+        setSuccess('Account created! Please check your email for the confirmation link.')
       } else {
         const { error: err } = await supabase.auth.signInWithPassword({
           email: form.email, password: form.password
@@ -364,39 +351,24 @@ export default function Login() {
 
           {/* Header */}
           <AnimatePresence mode="wait">
-            <motion.div key={`${mode}-${step}`}
+            <motion.div key={mode}
               initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.18 }}
               className="mb-6">
               <h1 className="font-bold tracking-tight mb-1"
                 style={{ fontSize: '1.55rem', letterSpacing: '-0.03em', color: 'var(--text1)' }}>
-                {mode === 'login' ? 'Welcome back' : step === 1 ? 'Create account' : 'Almost done'}
+                {mode === 'login' ? 'Welcome back' : 'Create an account'}
               </h1>
               <p className="text-[12px]" style={{ color: 'var(--text2)' }}>
                 {mode === 'login'
                   ? 'Sign in to continue your DSA journey.'
-                  : step === 1 ? 'Start tracking smarter today.'
-                  : 'A couple more details — totally optional.'}
+                  : 'Start tracking smarter today.'}
               </p>
             </motion.div>
           </AnimatePresence>
 
-          {/* Step dots for signup */}
-          {mode === 'signup' && (
-            <div className="flex items-center gap-1.5 mb-5">
-              {[1, 2].map(s => (
-                <motion.div key={s}
-                  animate={{ width: step === s ? 20 : 6, background: step >= s ? '#7c3aed' : 'var(--border2)' }}
-                  transition={{ duration: 0.3 }}
-                  className="h-1.5 rounded-full" />
-              ))}
-            </div>
-          )}
-
-          {/* Google — step 1 only */}
-          {(mode === 'login' || step === 1) && (
-            <>
-              <motion.button
+          {/* Google */}
+          <motion.button
                 whileHover={{ scale: 1.015 }} whileTap={{ scale: 0.975 }}
                 onClick={handleGoogle} disabled={googleLoading}
                 className="w-full flex items-center justify-center gap-2.5 py-2.5 rounded-xl text-[13px] font-medium mb-4 transition-all"
@@ -417,63 +389,31 @@ export default function Login() {
                 {googleLoading ? 'Connecting...' : 'Continue with Google'}
               </motion.button>
 
-              <div className="flex items-center gap-3 mb-4">
-                <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
-                <span className="text-[11px]" style={{ color: 'var(--text3)' }}>or</span>
-                <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
-              </div>
-            </>
-          )}
+          <div className="flex items-center gap-3 mb-4">
+            <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
+            <span className="text-[11px]" style={{ color: 'var(--text3)' }}>or</span>
+            <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
+          </div>
 
           {/* Form */}
           <form onSubmit={handleSubmit}>
             <AnimatePresence mode="wait">
-              {(mode === 'login' || step === 1) && (
-                <motion.div key="s1"
-                  initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -12 }} transition={{ duration: 0.18 }}
-                  className="space-y-3">
-                  <InputField icon={Mail} type="email" placeholder="Email address"
-                    value={form.email} onChange={v => set('email', v)} />
-                  <InputField icon={Lock} type={showPass ? 'text' : 'password'}
-                    placeholder="Password" value={form.password}
-                    onChange={v => set('password', v)}
-                    rightEl={
-                      <button type="button" onClick={() => setShowPass(s => !s)}
-                        style={{ color: 'var(--text3)' }}>
-                        {showPass ? <EyeOff size={13} /> : <Eye size={13} />}
-                      </button>
-                    } />
-                </motion.div>
-              )}
-
-              {mode === 'signup' && step === 2 && (
-                <motion.div key="s2"
-                  initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -12 }} transition={{ duration: 0.18 }}
-                  className="space-y-3">
-                  <InputField icon={User} placeholder="Your name (optional)"
-                    value={form.name} onChange={v => set('name', v)} />
-                  <div className="relative">
-                    <Code2 size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
-                      style={{ color: 'var(--text3)' }} />
-                    <input placeholder="LeetCode username (optional)"
-                      value={form.username}
-                      onChange={e => set('username', e.target.value)}
-                      className="w-full py-2.5 rounded-xl text-[13px] outline-none transition-all"
-                      style={{
-                        paddingLeft: '2.25rem', paddingRight: '1rem',
-                        background: 'var(--card)', border: '1px solid var(--border2)',
-                        color: 'var(--text1)', fontFamily: "'JetBrains Mono', monospace"
-                      }}
-                      onFocus={e => e.target.style.borderColor = 'rgba(124,58,237,0.5)'}
-                      onBlur={e => e.target.style.borderColor = 'var(--border2)'} />
-                  </div>
-                  <p className="text-[11px] px-0.5" style={{ color: 'var(--text3)' }}>
-                    You can update these anytime in settings.
-                  </p>
-                </motion.div>
-              )}
+              <motion.div key="s1"
+                initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -12 }} transition={{ duration: 0.18 }}
+                className="space-y-3">
+                <InputField icon={Mail} type="email" placeholder="Email address"
+                  value={form.email} onChange={v => set('email', v)} />
+                <InputField icon={Lock} type={showPass ? 'text' : 'password'}
+                  placeholder="Password" value={form.password}
+                  onChange={v => set('password', v)}
+                  rightEl={
+                    <button type="button" onClick={() => setShowPass(s => !s)}
+                      style={{ color: 'var(--text3)' }}>
+                      {showPass ? <EyeOff size={13} /> : <Eye size={13} />}
+                    </button>
+                  } />
+              </motion.div>
             </AnimatePresence>
 
             {/* Error / Success */}
@@ -496,15 +436,6 @@ export default function Login() {
 
             {/* Buttons */}
             <div className="flex gap-2 mt-4">
-              {mode === 'signup' && step === 2 && (
-                <motion.button type="button"
-                  whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-                  onClick={() => setStep(1)}
-                  className="flex-1 py-2.5 rounded-xl text-[13px] font-medium"
-                  style={{ background: 'var(--card)', border: '1px solid var(--border2)', color: 'var(--text2)' }}>
-                  ← Back
-                </motion.button>
-              )}
               <motion.button type="submit" disabled={loading}
                 whileHover={{ scale: loading ? 1 : 1.02, boxShadow: loading ? 'none' : '0 0 24px rgba(124,58,237,0.3)' }}
                 whileTap={{ scale: loading ? 1 : 0.97 }}
@@ -516,7 +447,7 @@ export default function Login() {
                 }}>
                 {loading
                   ? <div className="w-4 h-4 rounded-full border-2 border-white/20 border-t-white animate-spin" />
-                  : <>{mode === 'login' ? 'Sign in' : step === 1 ? 'Continue' : 'Create account'}<ArrowRight size={14} strokeWidth={2.5} /></>
+                  : <>{mode === 'login' ? 'Sign in' : 'Create account'}<ArrowRight size={14} strokeWidth={2.5} /></>
                 }
               </motion.button>
             </div>
