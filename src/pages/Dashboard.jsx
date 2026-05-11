@@ -32,37 +32,29 @@ export default function Dashboard() {
   useEffect(() => {
     if (!authUser) return
 
-    async function fetchUser() {
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', authUser.id)
-        .single()
+    async function fetchData() {
+      const [userRes, statsRes] = await Promise.all([
+        supabase.from('users').select('*').eq('id', authUser.id).single(),
+        supabase.from('solved_problems').select('id, title_slug, is_confident, next_revision_date, difficulty, problem_number').eq('user_id', authUser.id)
+      ])
 
-      if (data) {
-        setDbUser(data)
-        if (!data.leetcode_username) {
+      // Process User
+      if (userRes.data) {
+        setDbUser(userRes.data)
+        if (!userRes.data.leetcode_username) {
           setOnboardingStep(1)
         }
-      } else if (error && error.code === 'PGRST116') {
-        // PGRST116 is Supabase's "Row not found" error
+      } else if (userRes.error && userRes.error.code === 'PGRST116') {
         setOnboardingStep(1)
       }
-    }
-    fetchUser()
 
-    async function fetchStats() {
-      const { data, error } = await supabase
-        .from('solved_problems')
-        .select('id, title_slug, is_confident, next_revision_date, difficulty, problem_number')
-        .eq('user_id', authUser.id)
-      
-      if (data) {
+      // Process Stats
+      if (statsRes.data) {
+        const data = statsRes.data
         const confident = data.filter(p => p.is_confident).length
         const confidenceScore = data.length > 0 ? Math.round((confident / data.length) * 100) : 0
         setSolvedStats({ totalSolved: data.length, confidenceScore })
 
-        // Aggregate Difficulty
         const easy = data.filter(p => p.difficulty === 'Easy').length
         const medium = data.filter(p => p.difficulty === 'Medium').length
         const hard = data.filter(p => p.difficulty === 'Hard').length
@@ -72,7 +64,6 @@ export default function Dashboard() {
           { name: 'Hard', value: hard, color: '#f43f5e' }
         ])
 
-        // Get non-confident problems for revision queue, sorted by date
         const dueRevisions = data
           .filter(p => !p.is_confident)
           .sort((a, b) => new Date(a.next_revision_date) - new Date(b.next_revision_date))
@@ -93,11 +84,12 @@ export default function Dashboard() {
         
         setRevisionQueue(dueRevisions)
       }
-    }
-    
-    Promise.all([fetchUser(), fetchStats()]).then(() => {
+
+      // Turn off loading screen once all states are populated
       setIsLoading(false)
-    })
+    }
+
+    fetchData()
   }, [authUser])
 
   async function handleOnboardingSubmit(e) {
