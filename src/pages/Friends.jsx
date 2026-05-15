@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../context/ToastContext'
 import {
   Search, UserPlus, Users, Trophy, TrendingUp,
   Flame, BookOpen, Brain, X, ChevronRight,
@@ -29,23 +30,23 @@ const GRADIENTS = [
 
 // ── Add Friend Modal ──────────────────────────────────────────────────────
 function AddFriendModal({ onClose, onAdd, currentUserId }) {
+  const { addToast } = useToast()
   const [query, setQuery] = useState('')
   const [result, setResult] = useState(null)
   const [searching, setSearching] = useState(false)
   const [adding, setAdding] = useState(false)
-  const [msg, setMsg] = useState('')
 
   async function search() {
     if (!query.trim()) return
-    setSearching(true); setResult(null); setMsg('')
+    setSearching(true); setResult(null)
     const { data } = await supabase
       .from('users')
       .select('id, display_name, leetcode_username')
       .eq('leetcode_username', query.trim())
       .single()
     setSearching(false)
-    if (!data) setMsg('No user found with that username.')
-    else if (data.id === currentUserId) setMsg("That's you!")
+    if (!data) addToast('No user found with that username.', 'warning')
+    else if (data.id === currentUserId) addToast("That's you!", 'info')
     else setResult(data)
   }
 
@@ -57,9 +58,13 @@ function AddFriendModal({ onClose, onAdd, currentUserId }) {
       friend_user_id: result.id
     })
     setAdding(false)
-    if (error?.code === '23505') setMsg('Already in your friends list.')
-    else if (error) setMsg('Something went wrong.')
-    else { onAdd(result); onClose() }
+    if (error?.code === '23505') addToast('Already in your friends list.', 'warning')
+    else if (error) addToast('Something went wrong.', 'error')
+    else { 
+      addToast('Friend added!', 'success')
+      onAdd(result); 
+      onClose() 
+    }
   }
 
   return (
@@ -122,10 +127,6 @@ function AddFriendModal({ onClose, onAdd, currentUserId }) {
         </div>
 
         <AnimatePresence>
-          {msg && (
-            <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="text-[11px] mb-3" style={{ color: 'var(--text3)' }}>{msg}</motion.p>
-          )}
           {result && (
             <motion.div
               initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}

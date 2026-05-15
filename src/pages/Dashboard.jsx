@@ -3,10 +3,12 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { TrendingUp, CheckCircle2, Zap, BookOpen, MoreHorizontal, Play, Trophy, Users, AlertCircle, ArrowUpRight, RotateCw, X, Settings, Code2, ExternalLink } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../context/ToastContext'
 import { supabase } from '../lib/supabase'
 
 export default function Dashboard() {
   const { user: authUser } = useAuth()
+  const { addToast } = useToast()
   const [lastSync, setLastSync] = useState('2 hours ago')
   const [showEditModal, setShowEditModal] = useState(false)
   const [onboardingStep, setOnboardingStep] = useState(0) // 0: none, 1: leetcode username, 2: chrome extension token
@@ -322,7 +324,7 @@ export default function Dashboard() {
                           onClick={() => {
                             if (dbUser?.sync_token) {
                               navigator.clipboard.writeText(dbUser.sync_token)
-                              alert('Token copied to clipboard!')
+                              addToast('Token copied to clipboard!', 'success')
                             }
                           }}
                           className="px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap"
@@ -729,7 +731,7 @@ export default function Dashboard() {
                         e.preventDefault()
                         if (dbUser?.sync_token) {
                           navigator.clipboard.writeText(dbUser.sync_token)
-                          alert('Token copied to clipboard!')
+                          addToast('Token copied to clipboard!', 'success')
                         }
                       }}
                       className="px-4 py-2.5 rounded-lg text-sm font-semibold whitespace-nowrap"
@@ -764,7 +766,7 @@ export default function Dashboard() {
                   whileTap={{ scale: 0.98 }}
                   onClick={() => {
                     setShowEditModal(false)
-                    alert(`Profile saved!\n\nName: ${editForm.name}\nLeetCode: ${editForm.leetcodeUsername || 'Not set'}\nBio: ${editForm.bio}\nTarget: ${editForm.targetProblems} problems by ${editForm.a2zTargetDate}`)
+                    addToast(`Profile saved: ${editForm.name}`, 'success')
                   }}
                   className="flex-1 py-2.5 rounded-lg text-sm font-semibold"
                   style={{

@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { CheckCircle2, ExternalLink, Shuffle, Download } from 'lucide-react'
+import { CheckCircle2, ExternalLink, Shuffle, Download, Loader } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../context/ToastContext'
 import { supabase } from '../lib/supabase'
+import { fetchProblemDescription, cleanHtmlContent } from '../lib/leetcodeApi'
 
 const getDifficultyColor = (diff) => {
   if (diff === 'Easy') return { bg: '#10b98120', text: '#10b981' }
@@ -16,6 +18,8 @@ export default function Revisions() {
   const [displayProblems, setDisplayProblems] = useState([])
   const [problems, setProblems] = useState([])
   const [selectedProblem, setSelectedProblem] = useState(null)
+  const [problemDescription, setProblemDescription] = useState(null)
+  const [descriptionLoading, setDescriptionLoading] = useState(false)
   
   // Fetch problems from Supabase
   useEffect(() => {
@@ -50,24 +54,39 @@ export default function Revisions() {
   const [showConfident, setShowConfident] = useState(true)
 
   // Toggle confident status for a problem
-  const toggleConfident = async (leetcodeId) => {
-    const target = problems.find(p => p.leetcode === leetcodeId)
-    if (!target) return
-    const newStatus = !target.fullyConfident
-
-    // Optimistic UI update
-    setProblems(prev => prev.map(p => 
-      p.leetcode === leetcodeId ? { ...p, fullyConfident: newStatus } : p
-    ))
-
-    // DB Update
-    if (authUser) {
-      await supabase
-        .from('solved_problems')
-        .update({ is_confident: newStatus })
-        .eq('user_id', authUser.id)
-        .eq('title_slug', target.slug)
-    }
+  const toggleConfident = (leetcodeId) => {
+    setProblems(prevProblems => {
+      const updatedProblems = prevProblems.map(p => {
+        if (p.leetcode === leetcodeId) {
+          const newStatus = !p.fullyConfident
+          console.log('🔄 Toggling:', p.name, `${p.fullyConfident} → ${newStatus}`)
+          
+          // Update database in background
+          if (authUser) {
+            supabase
+              .from('solved_problems')
+              .update({ is_confident: newStatus })
+              .eq('user_id', authUser.id)
+              .eq('title_slug', p.slug)
+              .then(({ error }) => {
+                if (error) console.error('❌ DB Error:', error)
+                else console.log('✅ Saved to DB')
+              })
+          }
+          
+          return { ...p, fullyConfident: newStatus }
+        }
+        return p
+      })
+      
+      // Update selectedProblem if it's the one being toggled
+      const toggledProblem = updatedProblems.find(p => p.leetcode === leetcodeId)
+      if (selectedProblem?.leetcode === leetcodeId && toggledProblem) {
+        setSelectedProblem(toggledProblem)
+      }
+      
+      return updatedProblems
+    })
   }
 
   // Update revisions count
@@ -75,12 +94,14 @@ export default function Revisions() {
     const target = problems.find(p => p.leetcode === leetcodeId)
     if (!target) return
 
-    // Optimistic UI update
+    // Optimistic UI update - INSTANT VISUAL FEEDBACK
+    const updated = { ...target, revisions: newCount, fullyConfident: false }
+    setSelectedProblem(updated) // Update modal immediately
     setProblems(prev => prev.map(p => 
-      p.leetcode === leetcodeId ? { ...p, revisions: newCount, fullyConfident: false } : p
+      p.leetcode === leetcodeId ? updated : p
     ))
 
-    // DB Update
+    // DB Update (background)
     if (authUser) {
       await supabase
         .from('solved_problems')
@@ -90,15 +111,8 @@ export default function Revisions() {
     }
   }
 
-  // Update selected problem when problems change
-  useEffect(() => {
-    if (selectedProblem) {
-      const updatedProblem = problems.find(p => p.leetcode === selectedProblem.leetcode)
-      if (updatedProblem) {
-        setSelectedProblem(updatedProblem)
-      }
-    }
-  }, [problems])
+  // Don't sync selectedProblem when problems change - it causes toggle conflicts
+  // selectedProblem is updated directly in the toggle functions
 
   // Update display based on filters and shuffle
   useEffect(() => {
@@ -123,6 +137,39 @@ export default function Revisions() {
     setDisplayProblems(filtered)
   }, [problems, showFirst, showSecond, showThird, showConfident, isShuffled])
 
+  // Fetch problem description when problem is selected
+  useEffect(() => {
+    if (!selectedProblem?.slug) {
+      setProblemDescription(null)
+      return
+    }
+
+    setDescriptionLoading(true)
+    
+    fetchProblemDescription(selectedProblem.slug)
+      .then(question => {
+        if (question?.content) {
+          setProblemDescription({
+            title: question.title,
+            content: question.content, // already cleaned in API
+            difficulty: question.difficulty,
+            categoryTitle: question.categoryTitle,
+            topicTags: question.topicTags?.map(t => t.name) || [],
+            exampleTestcases: question.exampleTestcases
+          })
+        } else {
+          setProblemDescription(null)
+        }
+      })
+      .catch(err => {
+        console.error('Failed to fetch description:', err)
+        setProblemDescription(null)
+      })
+      .finally(() => {
+        setDescriptionLoading(false)
+      })
+  }, [selectedProblem?.slug])
+
   const handleShuffle = () => {
     // Fisher-Yates shuffle
     let shuffled = [...displayProblems]
@@ -134,8 +181,10 @@ export default function Revisions() {
     setIsShuffled(true)
   }
 
+  const { addToast } = useToast()
+
   const handleSync = () => {
-    alert('To bulk import your history, please visit your Profile in the Dashboard to copy your Sync Token!')
+    addToast('Visit your Profile in the Dashboard to copy your Sync Token!', 'info')
   }
 
   const handleUnshuffle = () => {
@@ -359,15 +408,16 @@ export default function Revisions() {
             {displayProblems.map((problem, idx) => (
               <motion.div
                 key={`${problem.leetcode}-${isShuffled}`}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
-                transition={{ duration: 0.2, delay: Math.min(idx * 0.02, 0.1) }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.15 }}
                 onClick={() => setSelectedProblem(problem)}
-                className="flex items-center justify-between gap-3 p-3 rounded-lg group hover:bg-opacity-80 transition-all cursor-pointer"
+                className="flex items-center justify-between gap-3 p-3 rounded-lg group hover:bg-opacity-80 transition-colors cursor-pointer active:scale-95"
                 style={{
                   background: problem.fullyConfident ? 'rgba(16, 185, 129, 0.08)' : 'var(--card)',
-                  border: problem.fullyConfident ? '1px solid #10b98140' : '1px solid var(--border)'
+                  border: problem.fullyConfident ? '1px solid #10b98140' : '1px solid var(--border)',
+                  transition: 'all 0.15s ease-out'
                 }}
               >
                 {/* Problem Number & Name */}
@@ -391,11 +441,7 @@ export default function Revisions() {
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <a 
-                      href={`https://leetcode.com/problems/${problem.slug}/`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
+                    <span 
                       style={{
                         color: problem.fullyConfident ? '#10b981' : 'var(--text1)',
                         fontSize: 'clamp(12px, 2vw, 14px)',
@@ -404,20 +450,16 @@ export default function Revisions() {
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
                         opacity: problem.fullyConfident ? 0.7 : 1,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px'
+                        display: 'block'
                       }}
-                      className="hover:underline"
                     >
                       {problem.name}
-                      <ExternalLink size={12} style={{ color: 'var(--text3)', opacity: 0.5 }} className="group-hover:opacity-100 transition-opacity" />
-                    </a>
+                    </span>
                   </div>
                 </div>
 
                 {/* Revision Count, Difficulty & Checkbox */}
-                <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="flex items-center gap-3 flex-shrink-0">
                   {/* Fully Confident Badge */}
                   {problem.fullyConfident && (
                     <div
@@ -430,6 +472,19 @@ export default function Revisions() {
                       ✓ Confident
                     </div>
                   )}
+                  
+                  {/* View on LeetCode Link - Far Right */}
+                  <a
+                    href={`https://leetcode.com/problems/${problem.slug}/`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="transition-opacity hover:opacity-100"
+                    style={{ opacity: 1, color: '#7c3aed' }}
+                    title="View on LeetCode"
+                  >
+                    <ExternalLink size={16} />
+                  </a>
 
                   {/* Revision Badge */}
                   {problem.revisions > 0 && !problem.fullyConfident && (
@@ -455,43 +510,28 @@ export default function Revisions() {
                   </div>
 
                   {/* Confident Checkbox - Round Checkbox */}
-                  <motion.button
+                  <button
                     onClick={(e) => {
                       e.stopPropagation()
                       toggleConfident(problem.leetcode)
                     }}
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="flex items-center justify-center transition-all duration-200"
+                    className="flex items-center justify-center active:scale-90"
                     style={{
                       width: '20px',
                       height: '20px',
                       borderRadius: '50%',
                       background: problem.fullyConfident ? '#10b981' : 'transparent',
                       border: problem.fullyConfident ? 'none' : '2px solid var(--text3)',
-                      cursor: 'pointer'
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease-out',
+                      outline: 'none'
                     }}
-                    title="Mark as fully confident"
+                    title={problem.fullyConfident ? 'Click to uncheck' : 'Mark as fully confident'}
                   >
                     {problem.fullyConfident && (
                       <span style={{ color: 'white', fontSize: '12px', fontWeight: 'bold' }}>✓</span>
                     )}
-                  </motion.button>
-
-                  <a
-                    href={`https://leetcode.com/problems/two-sum/`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className="p-1.5 rounded opacity-0 group-hover:opacity-100 transition-all duration-200"
-                    style={{
-                      background: 'var(--card2)',
-                      color: '#7c3aed'
-                    }}
-                    title="Open on LeetCode"
-                  >
-                    <ExternalLink size={14} />
-                  </a>
+                  </button>
                 </div>
               </motion.div>
             ))}
@@ -568,164 +608,180 @@ export default function Revisions() {
               </div>
 
               {/* Problem Description */}
-              <div className="p-6">
-                <div style={{ marginBottom: '24px' }}>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-1">
-                      <a 
-                        href={`https://leetcode.com/problems/${selectedProblem.slug}/`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-bold text-[15px] hover:underline flex items-center gap-2" 
-                        style={{ color: 'var(--text1)' }}
-                      >
-                        {selectedProblem.name}
-                        <ExternalLink size={14} style={{ color: 'var(--text3)' }} className="opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </a>
-                    </div>
-                    <p style={{ color: 'var(--text2)', fontSize: '13px', lineHeight: '1.6' }}>
-                      This is a {selectedProblem.difficulty.toLowerCase()} difficulty problem on LeetCode. 
-                      Click the "View on LeetCode" button below to see the full problem statement with examples and test cases.
-                    </p>
+              <div className="p-6 border-t" style={{ borderColor: 'var(--border)' }}>
+                {/* Description Title */}
+                <h3 style={{ color: 'var(--text1)', fontSize: '14px', fontWeight: '700', marginBottom: '12px' }}>
+                  Problem Description
+                </h3>
+                
+                {/* Description Loading or Content */}
+                {descriptionLoading ? (
+                  <div className="flex items-center gap-2" style={{ color: 'var(--text2)', fontSize: '13px' }}>
+                    <Loader size={14} className="animate-spin" />
+                    Loading problem details...
                   </div>
-                </div>
-
-                {/* Revision Status Section */}
-                <div style={{ marginBottom: '24px' }}>
-                  <h3 style={{ color: 'var(--text1)', fontSize: '14px', fontWeight: '700', marginBottom: '12px' }}>
-                    Revision Status
-                  </h3>
-                  
-                  <div className="space-y-2">
-                    {/* First Revised */}
-                    <motion.button
-                      onClick={() => updateRevisions(selectedProblem.leetcode, 1)}
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      className="w-full flex items-center gap-3 p-3 rounded-lg transition-all text-left"
-                      style={{
-                        background: selectedProblem.revisions === 1 ? '#3b82f615' : 'var(--card2)',
-                        border: selectedProblem.revisions === 1 ? '1px solid #3b82f6' : '1px solid var(--border)',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <div style={{
-                        width: '16px',
-                        height: '16px',
-                        borderRadius: '50%',
-                        background: selectedProblem.revisions === 1 ? '#3b82f6' : 'var(--text3)',
-                        transition: 'all 0.2s'
-                      }} />
-                      <span style={{ color: selectedProblem.revisions === 1 ? '#3b82f6' : 'var(--text2)', fontWeight: selectedProblem.revisions === 1 ? '600' : '500', fontSize: '13px' }}>
-                        First Revision
-                      </span>
-                    </motion.button>
-
-                    {/* Second Revised */}
-                    <motion.button
-                      onClick={() => updateRevisions(selectedProblem.leetcode, 2)}
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      className="w-full flex items-center gap-3 p-3 rounded-lg transition-all text-left"
-                      style={{
-                        background: selectedProblem.revisions === 2 ? '#f59e0b15' : 'var(--card2)',
-                        border: selectedProblem.revisions === 2 ? '1px solid #f59e0b' : '1px solid var(--border)',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <div style={{
-                        width: '16px',
-                        height: '16px',
-                        borderRadius: '50%',
-                        background: selectedProblem.revisions === 2 ? '#f59e0b' : 'var(--text3)',
-                        transition: 'all 0.2s'
-                      }} />
-                      <span style={{ color: selectedProblem.revisions === 2 ? '#f59e0b' : 'var(--text2)', fontWeight: selectedProblem.revisions === 2 ? '600' : '500', fontSize: '13px' }}>
-                        Second Revision
-                      </span>
-                    </motion.button>
-
-                    {/* Third Revised */}
-                    <motion.button
-                      onClick={() => updateRevisions(selectedProblem.leetcode, 3)}
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      className="w-full flex items-center gap-3 p-3 rounded-lg transition-all text-left"
-                      style={{
-                        background: selectedProblem.revisions === 3 ? '#a78bfa15' : 'var(--card2)',
-                        border: selectedProblem.revisions === 3 ? '1px solid #a78bfa' : '1px solid var(--border)',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <div style={{
-                        width: '16px',
-                        height: '16px',
-                        borderRadius: '50%',
-                        background: selectedProblem.revisions === 3 ? '#a78bfa' : 'var(--text3)',
-                        transition: 'all 0.2s'
-                      }} />
-                      <span style={{ color: selectedProblem.revisions === 3 ? '#a78bfa' : 'var(--text2)', fontWeight: selectedProblem.revisions === 3 ? '600' : '500', fontSize: '13px' }}>
-                        Third Revision
-                      </span>
-                    </motion.button>
-
-                    {/* Fully Confident */}
-                    <motion.button
-                      onClick={() => toggleConfident(selectedProblem.leetcode)}
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      className="w-full flex items-center gap-3 p-3 rounded-lg transition-all text-left"
-                      style={{
-                        background: selectedProblem.fullyConfident ? '#10b98115' : 'var(--card2)',
-                        border: selectedProblem.fullyConfident ? '1px solid #10b981' : '1px solid var(--border)',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <div style={{
-                        width: '16px',
-                        height: '16px',
-                        borderRadius: '50%',
-                        background: selectedProblem.fullyConfident ? '#10b981' : 'var(--text3)',
-                        transition: 'all 0.2s'
-                      }} />
-                      <span style={{ color: selectedProblem.fullyConfident ? '#10b981' : 'var(--text2)', fontWeight: selectedProblem.fullyConfident ? '600' : '500', fontSize: '13px' }}>
-                        Fully Confident
-                      </span>
-                    </motion.button>
+                ) : problemDescription && problemDescription.content ? (
+                  <div style={{ 
+                    color: 'var(--text2)', 
+                    fontSize: '13px', 
+                    lineHeight: '1.7',
+                    marginBottom: '16px',
+                    whiteSpace: 'pre-wrap',
+                    wordWrap: 'break-word',
+                    maxHeight: '400px',
+                    overflowY: 'auto'
+                  }}>
+                    {problemDescription.content.substring(0, 1200)}
+                    {problemDescription.content.length > 1200 && (
+                      <div style={{ marginTop: '12px', color: 'var(--text3)', fontSize: '12px' }}>
+                        [View full on LeetCode →]
+                      </div>
+                    )}
                   </div>
-                </div>
+                ) : (
+                  <p style={{ color: 'var(--text3)', fontSize: '13px', lineHeight: '1.6' }}>
+                    Problem description could not be loaded. Click "View on LeetCode" to see the full problem.
+                  </p>
+                )}
+              </div>
 
-                {/* Action Buttons */}
-                <div className="flex gap-3">
-                  <a
-                    href={`https://leetcode.com/problems/two-sum/`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-1 px-4 py-2 rounded-lg font-semibold text-sm transition-all text-white"
+              {/* Revision Status Section */}
+              <div className="p-6 border-t" style={{ borderColor: 'var(--border)' }}>
+                <h3 style={{ color: 'var(--text1)', fontSize: '14px', fontWeight: '700', marginBottom: '12px' }}>
+                  Revision Status
+                </h3>
+                
+                <div className="space-y-2">
+                  {/* First Revised */}
+                  <button
+                    onClick={() => updateRevisions(selectedProblem.leetcode, 1)}
+                    className="w-full flex items-center gap-3 p-3 rounded-lg text-left active:scale-95"
                     style={{
-                      background: 'linear-gradient(135deg, #7c3aed, #a78bfa)',
-                      textDecoration: 'none',
-                      textAlign: 'center',
-                      cursor: 'pointer'
+                      background: selectedProblem.revisions === 1 ? '#3b82f615' : 'var(--card2)',
+                      border: selectedProblem.revisions === 1 ? '1px solid #3b82f6' : '1px solid var(--border)',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease-out',
+                      outline: 'none'
                     }}
                   >
-                    View on LeetCode
-                  </a>
-                  <motion.button
-                    onClick={() => setSelectedProblem(null)}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    className="flex-1 px-4 py-2 rounded-lg font-semibold text-sm transition-all"
+                    <div style={{
+                      width: '16px',
+                      height: '16px',
+                      borderRadius: '50%',
+                      background: selectedProblem.revisions === 1 ? '#3b82f6' : 'var(--text3)',
+                      transition: 'all 0.15s ease-out'
+                    }} />
+                    <span style={{ color: selectedProblem.revisions === 1 ? '#3b82f6' : 'var(--text2)', fontWeight: selectedProblem.revisions === 1 ? '600' : '500', fontSize: '13px' }}>
+                      First Revision
+                    </span>
+                  </button>
+
+                  {/* Second Revised */}
+                  <button
+                    onClick={() => updateRevisions(selectedProblem.leetcode, 2)}
+                    className="w-full flex items-center gap-3 p-3 rounded-lg text-left active:scale-95"
                     style={{
-                      background: 'var(--card2)',
-                      color: 'var(--text1)',
-                      border: '1px solid var(--border)',
-                      cursor: 'pointer'
+                      background: selectedProblem.revisions === 2 ? '#f59e0b15' : 'var(--card2)',
+                      border: selectedProblem.revisions === 2 ? '1px solid #f59e0b' : '1px solid var(--border)',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease-out',
+                      outline: 'none'
                     }}
                   >
-                    Close
-                  </motion.button>
+                    <div style={{
+                      width: '16px',
+                      height: '16px',
+                      borderRadius: '50%',
+                      background: selectedProblem.revisions === 2 ? '#f59e0b' : 'var(--text3)',
+                      transition: 'all 0.15s ease-out'
+                    }} />
+                    <span style={{ color: selectedProblem.revisions === 2 ? '#f59e0b' : 'var(--text2)', fontWeight: selectedProblem.revisions === 2 ? '600' : '500', fontSize: '13px' }}>
+                      Second Revision
+                    </span>
+                  </button>
+
+                  {/* Third Revised */}
+                  <button
+                    onClick={() => updateRevisions(selectedProblem.leetcode, 3)}
+                    className="w-full flex items-center gap-3 p-3 rounded-lg text-left active:scale-95"
+                    style={{
+                      background: selectedProblem.revisions === 3 ? '#a78bfa15' : 'var(--card2)',
+                      border: selectedProblem.revisions === 3 ? '1px solid #a78bfa' : '1px solid var(--border)',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease-out',
+                      outline: 'none'
+                    }}
+                  >
+                    <div style={{
+                      width: '16px',
+                      height: '16px',
+                      borderRadius: '50%',
+                      background: selectedProblem.revisions === 3 ? '#a78bfa' : 'var(--text3)',
+                      transition: 'all 0.15s ease-out'
+                    }} />
+                    <span style={{ color: selectedProblem.revisions === 3 ? '#a78bfa' : 'var(--text2)', fontWeight: selectedProblem.revisions === 3 ? '600' : '500', fontSize: '13px' }}>
+                      Third Revision
+                    </span>
+                  </button>
+
+                  {/* Fully Confident */}
+                  <button
+                    onClick={() => toggleConfident(selectedProblem.leetcode)}
+                    className="w-full flex items-center gap-3 p-3 rounded-lg text-left active:scale-95"
+                    style={{
+                      background: selectedProblem.fullyConfident ? '#10b98115' : 'var(--card2)',
+                      border: selectedProblem.fullyConfident ? '1px solid #10b981' : '1px solid var(--border)',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease-out',
+                      outline: 'none'
+                    }}
+                  >
+                    <div style={{
+                      width: '16px',
+                      height: '16px',
+                      borderRadius: '50%',
+                      background: selectedProblem.fullyConfident ? '#10b981' : 'var(--text3)',
+                      transition: 'all 0.15s ease-out'
+                    }} />
+                    <span style={{ color: selectedProblem.fullyConfident ? '#10b981' : 'var(--text2)', fontWeight: selectedProblem.fullyConfident ? '600' : '500', fontSize: '13px' }}>
+                      Fully Confident
+                    </span>
+                  </button>
                 </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 p-6 border-t" style={{ borderColor: 'var(--border)' }}>
+                <a
+                  href={`https://leetcode.com/problems/${selectedProblem.slug}/`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 px-4 py-2 rounded-lg font-semibold text-sm text-white active:scale-95"
+                  style={{
+                    background: 'linear-gradient(135deg, #7c3aed, #a78bfa)',
+                    textDecoration: 'none',
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease-out',
+                    display: 'block'
+                  }}
+                >
+                  View on LeetCode
+                </a>
+                <button
+                  onClick={() => setSelectedProblem(null)}
+                  className="flex-1 px-4 py-2 rounded-lg font-semibold text-sm active:scale-95"
+                  style={{
+                    background: 'var(--card2)',
+                    color: 'var(--text1)',
+                    border: '1px solid var(--border)',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease-out',
+                    outline: 'none'
+                  }}
+                >
+                  Close
+                </button>
               </div>
             </motion.div>
           </motion.div>
